@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Vertex Ordering & Culling</title>
+  <style>
+    body { margin: 0; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
+<script>
+  // 1. Setup scene, camera, renderer
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x222222);
+
+  const camera = new THREE.PerspectiveCamera(
+    75, window.innerWidth / window.innerHeight, 0.1, 1000
+  );
+  camera.position.z = 3;
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  // 2. Definisi geometry segitiga
+  const geometry = new THREE.BufferGeometry();
+  const vertices = new Float32Array([
+     0.0,  1.0, 0.0,   // atas
+    -1.0, -1.0, 0.0,   // kiri bawah
+     1.0, -1.0, 0.0    // kanan bawah
+  ]);
+  geometry.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
+
+  // 3. Material dengan opsi culling
+  const material = new THREE.MeshBasicMaterial({
+    color: 0xff0000,
+    side: THREE.DoubleSide // Coba ganti: FrontSide / BackSide / DoubleSide
+  });
+
+  // 4. Mesh segitiga
+  const triangle = new THREE.Mesh(geometry, material);
+  scene.add(triangle);
+
+  // 5. Animasi untuk memperlihatkan efek culling
+  function animate() {
+    requestAnimationFrame(animate);
+    triangle.rotation.y += 0.01; // putar biar sisi depan-belakang terlihat
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // 6. Responsif saat window diresize
+  window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+</script>
+</body>
+</html>
