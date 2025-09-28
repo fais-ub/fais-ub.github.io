@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Texture Mapping – Basic, UV Stretching, Tiling (three.js)</title>
+  <style>
+    body { margin:0; background:#111; color:#eee; font-family: system-ui, sans-serif; }
+    #label { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); text-align:center; line-height:1.4; }
+    canvas { display:block; }
+    .tag { position:absolute; top:54px; width:33.333%; text-align:center; pointer-events:none; color:#ccc; }
+    #t1 { left:0; }
+    #t2 { left:33.333%; }
+    #t3 { left:66.666%; }
+  </style>
+</head>
+<body>
+<div id="label">
+  <div><b>Texture Mapping Demo</b></div>
+  <div>Left: Basic mapping &nbsp; | &nbsp; Middle: UV stretching (v × 0.5) &nbsp; | &nbsp; Right: Tiling (repeat 4 × 2)</div>
+</div>
+<div id="t1" class="tag">Basic</div>
+<div id="t2" class="tag">UV Stretching</div>
+<div id="t3" class="tag">Tiling</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
+<script>
+  // --- 1) Scene, Camera, Renderer ---
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 5);
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  document.body.appendChild(renderer.domElement);
+
+  // --- 2) Buat tekstur prosedural (checker + garis merah tipis) ---
+  function makeChecker(size = 512, cells = 16) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    const cell = size / cells;
+
+    for (let y = 0; y < cells; y++) {
+      for (let x = 0; x < cells; x++) {
+        const odd = (x + y) % 2;
+        ctx.fillStyle = odd ? '#ffffff' : '#1e1e1e';
+        ctx.fillRect(x*cell, y*cell, cell, cell);
+      }
+    }
+    // Grid merah tipis untuk menonjolkan distorsi/tiling
+    ctx.strokeStyle = '#ff4040';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= size; x += cell) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke(); }
+    for (let y = 0; y <= size; y += cell) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke(); }
+
+    return new THREE.CanvasTexture(c);
+  }
+
+  const baseTex = makeChecker(512, 16);
+  baseTex.generateMipmaps = true;
+  baseTex.minFilter = THREE.LinearMipmapLinearFilter; // trilinear
+  baseTex.magFilter = THREE.LinearFilter;
+  baseTex.needsUpdate = true;
+
+  // --- 3) VAR 1: Basic mapping (gunakan UV bawaan plane) ---
+  const texBasic = baseTex.clone();
+  texBasic.wrapS = THREE.ClampToEdgeWrapping;
+  texBasic.wrapT = THREE.ClampToEdgeWrapping;
+
+  const matBasic = new THREE.MeshBasicMaterial({ map: texBasic });
+  const p1 = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), matBasic);
+  p1.position.x = -2.1;
+  scene.add(p1);
+
+  // --- 4) VAR 2: UV Stretching (skala v setengah pada geometry) ---
+  //   - Kita ambil UV dari PlaneGeometry lalu ubah nilai v (komponen y) => v *= 0.5
+  const geomStretch = new THREE.PlaneGeometry(1.6, 1.6);
+  const uvAttr = geomStretch.attributes.uv;
+  for (let i = 0; i < uvAttr.count; i++) {
+    const u = uvAttr.getX(i);
+    const v = uvAttr.getY(i);
+    uvAttr.setXY(i, u, v * 0.5); // stretch secara vertikal
+  }
+  uvAttr.needsUpdate = true;
+
+  const texStretch = baseTex.clone();
+  texStretch.wrapS = THREE.ClampToEdgeWrapping;
+  texStretch.wrapT = THREE.ClampToEdgeWrapping;
+
+  const matStretch = new THREE.MeshBasicMaterial({ map: texStretch });
+  const p2 = new THREE.Mesh(geomStretch, matStretch);
+  // Sedikit miringkan agar distorsi makin terlihat
+  p2.rotation.z = Math.PI * 0.02;
+  scene.add(p2);
+
+  // --- 5) VAR 3: Tiling / Repeat ---
+  //   - Set repeat 4x2, aktifkan RepeatWrapping agar UV di luar [0,1] mengulang
+  const texTile = baseTex.clone();
+  texTile.wrapS = THREE.RepeatWrapping;
+  texTile.wrapT = THREE.RepeatWrapping;
+  texTile.repeat.set(4, 2); // tiling 4x hor, 2x vert
+  texTile.needsUpdate = true;
+
+  const matTile = new THREE.MeshBasicMaterial({ map: texTile });
+  const p3 = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), matTile);
+  p3.position.x = 2.1;
+  scene.add(p3);
+
+  // --- 6) (Opsional) Sphere untuk menunjukkan "seam" UV alami pada U=0/1 ---
+  //   SphereGeometry punya seam di longtitude (U melingkar 0..1)
+  //   Tekstur grid membuat seam mudah terlihat di satu garis meridian
+  const showSeam = false; // ubah ke true untuk menambah sphere
+  if (showSeam) {
+    const texSphere = baseTex.clone();
+    texSphere.wrapS = THREE.RepeatWrapping; // kalau Clamp, seam makin kentara
+    texSphere.wrapT = THREE.ClampToEdgeWrapping;
+    texSphere.needsUpdate = true;
+
+    const s = new THREE.Mesh(
+      new THREE.SphereGeometry(0.8, 32, 16),
+      new THREE.MeshBasicMaterial({ map: texSphere })
+    );
+    s.position.set(0, -1.6, 0);
+    scene.add(s);
+  }
+
+  // --- 7) Render & Resize ---
+  function render(){ renderer.render(scene, camera); }
+  render();
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth/innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    // relayout label bar (opsional): biarkan saja
+    render();
+  });
+</script>
+</body>
+</html>

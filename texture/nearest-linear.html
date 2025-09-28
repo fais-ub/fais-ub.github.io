@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Nearest vs Linear Filtering (three.js)</title>
+  <style>
+    body { margin: 0; background: #111; color: #eee; font-family: system-ui, sans-serif; }
+    #label { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); text-align: center; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<div id="label">
+  <div><b>Kiri:</b> Nearest filtering &nbsp; | &nbsp; <b>Kanan:</b> Linear filtering</div>
+  <div>Perbesar tampilan browser (Ctrl/Cmd + +) untuk melihat perbedaan semakin jelas</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
+<script>
+  // --- 1) Scene, Camera, Renderer ---
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
+  camera.position.set(0, 0, 3);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  document.body.appendChild(renderer.domElement);
+
+  // --- 2) Buat tekstur checkerboard secara prosedural ---
+  function makeChecker(size = 256, cells = 16) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    const cell = size / cells;
+
+    for (let y = 0; y < cells; y++) {
+      for (let x = 0; x < cells; x++) {
+        const odd = (x + y) % 2;
+        ctx.fillStyle = odd ? '#ffffff' : '#222222';
+        ctx.fillRect(x * cell, y * cell, cell, cell);
+      }
+    }
+    // Tambah garis halus merah untuk memunculkan aliasing saat minification
+    ctx.strokeStyle = '#ff4040';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= size; x += cell) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke(); }
+    for (let y = 0; y <= size; y += cell) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke(); }
+    return new THREE.CanvasTexture(c);
+  }
+
+  const baseTex = makeChecker(256, 16);
+  baseTex.wrapS = baseTex.wrapT = THREE.RepeatWrapping;
+  baseTex.repeat.set(2, 2); // sedikit tiling agar pola jelas
+
+  // --- 3) Duplikasi tekstur untuk dua mode filtering ---
+  // Kiri: NEAREST (magnification & minification)
+  const texNearest = baseTex.clone();
+  texNearest.magFilter = THREE.NearestFilter;
+  texNearest.minFilter = THREE.NearestMipmapNearestFilter; // gunakan mipmap level terdekat tanpa interpolasi
+  texNearest.generateMipmaps = true;
+  texNearest.needsUpdate = true;
+
+  // Kanan: LINEAR (magnification & minification)
+  const texLinear = baseTex.clone();
+  texLinear.magFilter = THREE.LinearFilter;
+  texLinear.minFilter = THREE.LinearMipmapLinearFilter; // trilinear: antar mip-level juga diinterpolasi
+  texLinear.generateMipmaps = true;
+  texLinear.needsUpdate = true;
+
+  // Opsional: matikan anisotropy agar beda nearest vs linear makin kentara
+  // (bisa diubah ke nilai max untuk demo anisotropic di sesi berikutnya)
+  texNearest.anisotropy = 0;
+  texLinear.anisotropy  = 1;
+
+  // --- 4) Geometry & Materials (pakai Basic agar jelas tanpa pengaruh lighting) ---
+  const geom = new THREE.PlaneGeometry(1.4, 1.4);
+  const matNearest = new THREE.MeshBasicMaterial({ map: texNearest });
+  const matLinear  = new THREE.MeshBasicMaterial({ map: texLinear });
+
+  const left  = new THREE.Mesh(geom, matNearest);
+  const right = new THREE.Mesh(geom, matLinear);
+  left.position.x  = -0.9;
+  right.position.x =  0.9;
+
+  scene.add(left, right);
+
+  // --- 5) Tambah plane jauh untuk memicu minification (lihat shimmer/blur perbandingan) ---
+  const farGeom = new THREE.PlaneGeometry(8, 8);
+  const farLeft  = new THREE.Mesh(farGeom, matNearest);
+  const farRight = new THREE.Mesh(farGeom, matLinear);
+  farLeft.position.set(-4.5, -2.2, -6);
+  farRight.position.set( 4.5, -2.2, -6);
+  scene.add(farLeft, farRight);
+
+  // --- 6) Render & Resize ---
+  function render() {
+    renderer.render(scene, camera);
+  }
+  render();
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    render();
+  });
+</script>
+</body>
+</html>

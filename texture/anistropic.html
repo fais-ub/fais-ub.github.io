@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Nearest/Linear vs Anisotropic 16x (three.js)</title>
+  <style>
+    body { margin: 0; background: #111; color: #eee; font-family: system-ui, sans-serif; }
+    #label { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); text-align: center; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<div id="label">
+  <div><b>Kiri:</b> Trilinear tanpa anisotropic &nbsp; | &nbsp; <b>Kanan:</b> Trilinear + Anisotropic 16x</div>
+  <div>Perhatikan bagian jauh pada bidang miring, kanan harus lebih tajam dan stabil</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.min.js"></script>
+<script>
+  // --- 1) Scene, Camera, Renderer ---
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
+  camera.position.set(0, 1.6, 3.5);
+  camera.lookAt(0, 0.4, -2);
+
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  document.body.appendChild(renderer.domElement);
+
+  // --- 2) Checker texture (procedural) ---
+  function makeChecker(size = 512, cells = 32) {
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    const cell = size / cells;
+
+    for (let y = 0; y < cells; y++) {
+      for (let x = 0; x < cells; x++) {
+        const odd = (x + y) % 2;
+        ctx.fillStyle = odd ? '#ffffff' : '#222222';
+        ctx.fillRect(x * cell, y * cell, cell, cell);
+      }
+    }
+    // garis tipis merah agar detail frekuensi tinggi terlihat di kejauhan
+    ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 1;
+    for (let x = 0; x <= size; x += cell) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, size); ctx.stroke(); }
+    for (let y = 0; y <= size; y += cell) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(size, y); ctx.stroke(); }
+    return new THREE.CanvasTexture(c);
+  }
+
+  const baseTex = makeChecker(512, 32);
+  baseTex.wrapS = baseTex.wrapT = THREE.RepeatWrapping;
+  baseTex.repeat.set(12, 24); // banyak tiling supaya detail jauh terlihat
+
+  // --- 3) Dua varian texture: kiri (tanpa AF), kanan (dengan AF 16x) ---
+  const texLeft = baseTex.clone();
+  texLeft.magFilter = THREE.LinearFilter;
+  texLeft.minFilter = THREE.LinearMipmapLinearFilter; // trilinear
+  texLeft.generateMipmaps = true;
+  texLeft.anisotropy = 1; // tanpa anisotropic
+  texLeft.needsUpdate = true;
+
+  const texRight = baseTex.clone();
+  texRight.magFilter = THREE.LinearFilter;
+  texRight.minFilter = THREE.LinearMipmapLinearFilter; // trilinear
+  texRight.generateMipmaps = true;
+  texRight.anisotropy = Math.min(
+    16,
+    renderer.capabilities.getMaxAnisotropy() || 1
+  ); // AF 16x (atau maksimal yang didukung)
+  texRight.needsUpdate = true;
+
+  // --- 4) Geometri lantai miring (grazing angle) ---
+  const floorGeom = new THREE.PlaneGeometry(3.2, 6.0, 1, 1);
+
+  const matLeft  = new THREE.MeshBasicMaterial({ map: texLeft });
+  const matRight = new THREE.MeshBasicMaterial({ map: texRight });
+
+  const left  = new THREE.Mesh(floorGeom, matLeft);
+  const right = new THREE.Mesh(floorGeom, matRight);
+
+  left.position.set(-1.7, 0, -1.5);
+  right.position.set( 1.7, 0, -1.5);
+
+  // miringkan seperti lantai memanjang ke horizon
+  left.rotation.x  = -Math.PI / 3;
+  right.rotation.x = -Math.PI / 3;
+
+  scene.add(left, right);
+
+  // --- 5) Sedikit referensi lingkungan (grid tipis) ---
+  const grid = new THREE.GridHelper(20, 40, 0x444444, 0x222222);
+  grid.position.y = -0.001;
+  scene.add(grid);
+
+  // --- 6) Render & Resize ---
+  function render(){ renderer.render(scene, camera); }
+  render();
+
+  addEventListener('resize', () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+    render();
+  });
+</script>
+</body>
+</html>
