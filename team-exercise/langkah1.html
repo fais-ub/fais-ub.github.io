@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Textured Room – Step 1</title>
+  <style>
+    /* Pastikan kanvas memenuhi layar dan tidak ada scroll */
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #111; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+<!-- Tidak ada elemen lain agar kanvas benar-benar pusat layar -->
+
+<script type="module">
+  /* 1. Import three.js versi module dari CDN */
+  import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js";
+
+  /* 2. Buat Scene */
+  const scene = new THREE.Scene();
+  // Warna latar belakang (abu gelap) agar jelas terlihat ketika berhasil render
+  scene.background = new THREE.Color(0x222222);
+
+  /* 3. Buat Camera (PerspectiveCamera)
+        - fov: 60 derajat, cukup natural
+        - aspect: rasio lebar/tinggi jendela
+        - near/far: 0.1 s/d 100 (jangkauan kamera)
+  */
+  const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+  // Posisikan kamera sedikit di depan (Z+) dan agak tinggi (Y) untuk pandangan ruang
+  camera.position.set(0, 1.5, 3);
+  // Arahkan kamera ke pusat (0,1,0) — kira-kira setinggi “mata” manusia
+  camera.lookAt(0, 1, 0);
+
+  /* 4. Buat Renderer dan pasang ke dokumen
+        - antialias:true untuk tepi lebih halus
+        - setPixelRatio untuk high-DPI, dibatasi max 2 agar hemat performa
+        - setSize mengikuti ukuran jendela
+  */
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  // (Opsional, tapi membantu akurasi warna di r152+)
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  document.body.appendChild(renderer.domElement);
+
+  /* 5. Loop render
+        - requestAnimationFrame untuk menggambar ulang tiap frame
+        - Belum ada objek, jadi Anda akan melihat layar abu gelap (berarti sukses)
+  */
+  function animate() {
+    requestAnimationFrame(animate);
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  /* 6. Responsif ketika jendela diubah ukurannya
+        - Update aspect camera
+        - Update projection matrix
+        - Resize renderer
+  */
+  window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Cube with Texture & OrbitControls (CDN Module)</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #111; }
+    canvas { display: block; }
+    .hint {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      color: #ddd; font-family: system-ui, sans-serif; font-size: 14px; text-align: center;
+      background: rgba(0,0,0,0.35); padding: 6px 10px; border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+<div class="hint">Drag = rotate, Scroll = zoom, Right-drag = pan, Press R = reset camera</div>
+
+<script type="module">
+  import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.152.0/build/three.module.js";
+  import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.152.0/examples/jsm/controls/OrbitControls.js";
+
+  // --- Scene & Camera ---
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x222222);
+
+  const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 100);
+  const defaultPos = new THREE.Vector3(2, 2, 4);
+  camera.position.copy(defaultPos);
+  camera.lookAt(0, 0, 0);
+
+  // --- Renderer ---
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(innerWidth, innerHeight);
+  document.body.appendChild(renderer.domElement);
+
+  // --- Controls ---
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.target.set(0, 0, 0);
+
+  // --- Lights ---
+  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+  const key = new THREE.PointLight(0xffffff, 1.2, 100);
+  key.position.set(3, 3, 5);
+  scene.add(key);
+
+  // --- Texture ---
+  const loader = new THREE.TextureLoader();
+  const texture = loader.load("brick.jpg"); // ganti dengan nama file gambar Anda
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+  // --- Cube ---
+  const geo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+  const mat = new THREE.MeshStandardMaterial({ map: texture });
+  const cube = new THREE.Mesh(geo, mat);
+  scene.add(cube);
+
+  // --- Animate ---
+  function animate() {
+    requestAnimationFrame(animate);
+    cube.rotation.x += 0.005;
+    cube.rotation.y += 0.009;
+    controls.update();
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // --- Resize ---
+  window.addEventListener("resize", () => {
+    camera.aspect = innerWidth / innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth, innerHeight);
+  });
+
+  // --- Reset Camera (R) ---
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "r" || e.key === "R") {
+      camera.position.copy(defaultPos);
+      controls.target.set(0, 0, 0);
+      camera.lookAt(0, 0, 0);
+      controls.update();
+    }
+  });
+</script>
+</body>
+</html>
